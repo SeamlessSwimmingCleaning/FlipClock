@@ -44,6 +44,17 @@
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; }
     body { background-color: var(--bg-color); color: var(--text-color); height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; transition: background 0.5s ease; }
 
+.flip {
+  animation: flip 0.5s forwards;
+}
+
+@keyframes flip {
+  0% { transform: rotateX(0); }
+  50% { transform: rotateX(90deg); }
+  100% { transform: rotateX(0); }
+}
+
+    
     /* --- Clock Display --- */
     .clock-wrapper { display: flex; align-items: center; gap: 15px; transform: scale(1); transition: transform 0.3s; }
     
@@ -259,13 +270,22 @@
       updateDisplay();
     }
 
-    // Helper: Update Text Only (NO FLIP ANIMATION)
-    function updateCards(id1, id2, value) {
-      const str = String(value).padStart(2, '0');
-      document.getElementById(id1).innerText = str[0];
-      document.getElementById(id2).innerText = str[1];
-    }
+  function updateCards(id1, id2, value) {
+  const str = String(value).padStart(2, '0');
+  const card1 = document.getElementById(id1);
+  const card2 = document.getElementById(id2);
+  
+  // Add flip animation
+  card1.classList.add('flip');
+  card2.classList.add('flip');
 
+  setTimeout(() => {
+    card1.innerText = str[0];
+    card2.innerText = str[1];
+    card1.classList.remove('flip');
+    card2.classList.remove('flip');
+  }, 500); // Duration of the flip animation
+}
     // Main Engine
     function updateDisplay() {
       if (currentMode === 'clock') {
