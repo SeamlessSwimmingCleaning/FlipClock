@@ -165,8 +165,9 @@
       <input type="checkbox" id="dark-mode-toggle" checked>
     </div>
     <div class="row" style="margin-top:10px;">
-      <span>Custom Color</span>
-      <input type="color" id="custom-color" value="#666666">
+      <span>Card Color</span>
+      <!-- ADDED: Logic to change card color -->
+      <input type="color" id="custom-color" value="#2a2a2a">
     </div>
     <h3>Presets</h3>
     <div class="color-grid">
@@ -181,175 +182,195 @@
   <!-- 2. Modes Menu -->
   <div class="menu-panel" id="menu-modes">
     <h3>Select Engine</h3>
-    <button class="mode-btn active" onclick="setMode('clock')">
+    <button class="mode-btn active" id="mode-clock" onclick="setMode('clock')">
       <span>Clock</span> <span>&#x25F4;</span>
     </button>
-    <button class="mode-btn" onclick="setMode('timer')">
-      <span>Timer (5m)</span> <span>&#x231B;</span>
+    <button class="mode-btn" id="mode-timer" onclick="setMode('timer')">
+      <span>Timer</span> <span>&#x231B;</span>
     </button>
-    <button class="mode-btn" onclick="setMode('stopwatch')">
+    <button class="mode-btn" id="mode-stopwatch" onclick="setMode('stopwatch')">
       <span>Stopwatch</span> <span>&#x23F1;</span>
     </button>
   </div>
 
   <!-- 3. Settings Menu -->
   <div class="menu-panel" id="menu-settings">
-    <h3>Layout</h3>
+    <h3>Settings</h3>
     <div class="row">
       <span>Show Seconds</span>
-      <input type="checkbox" id="seconds-toggle">
+      <input type="checkbox" id="toggle-seconds">
+    </div>
+    <!-- ADDED: Custom Timer Duration Input -->
+    <div class="row" style="margin-top:10px;">
+      <span>Timer (Mins)</span>
+      <input type="number" id="timer-duration" value="5" min="1" max="999" 
+             style="width:70px; padding:6px; border-radius:6px; background:var(--panel-bg); color:var(--text-color); border:1px solid var(--border); font-weight:600;">
     </div>
   </div>
 
-  <!-- BOTTOM NAV BAR -->
-  <nav class="bottom-nav">
-    <button class="nav-item" onclick="toggleMenu('menu-themes')">🎨</button>
-    <button class="nav-item" onclick="toggleMenu('menu-modes')">💡</button>
-    <button class="nav-item" onclick="toggleMenu('menu-settings')">⚙️</button>
-  </nav>
+  <!-- ADDED: Bottom Navigation -->
+  <div class="bottom-nav">
+    <button class="nav-item" onclick="toggleMenu('themes')">🎨</button>
+    <button class="nav-item" onclick="toggleMenu('modes')">⏱️</button>
+    <button class="nav-item" onclick="toggleMenu('settings')">⚙️</button>
+  </div>
 
+  <!-- ADDED: Javascript Engine -->
   <script>
-    // --- State ---
-    let mode = 'clock'; // clock | timer | stopwatch
-    let interval = null;
-    let secondsVisible = false;
-    
-    // Timer/Stopwatch State
-    let timeValue = 300; // default 5 min for timer
-    let isRunning = false;
+    let currentMode = 'clock';
+    let timerRunning = false;
+    let timerInterval = null;
+    let timeElapsed = 0; 
+    let totalTimerSeconds = 300; // Default 5 mins
 
-    // --- DOM Elements ---
-    const secGroup = document.getElementById('sec-group');
-    const controls = document.getElementById('control-actions');
-    const btnStart = document.getElementById('btn-start');
-    
-    // --- Core Functions ---
-    function updateDigit(id, val) {
-      document.getElementById(id).innerText = val;
-    }
-
-    function renderTime(h, m, s) {
-      const hStr = String(h).padStart(2, '0');
-      const mStr = String(m).padStart(2, '0');
-      const sStr = String(s).padStart(2, '0');
-
-      updateDigit('h1', hStr[0]); updateDigit('h2', hStr[1]);
-      updateDigit('m1', mStr[0]); updateDigit('m2', mStr[1]);
-      updateDigit('s1', sStr[0]); updateDigit('s2', sStr[1]);
-    }
-
-    // --- Engines ---
-    function runClock() {
-      const now = new Date();
-      renderTime(now.getHours(), now.getMinutes(), now.getSeconds());
-    }
-
-    function runTimer() {
-      if(isRunning && timeValue > 0) {
-        timeValue--;
-        if(timeValue === 0) { isRunning = false; btnStart.innerText = "Start"; alert("Time's up!"); }
+    // Menu Logic
+    function toggleMenu(menuId) {
+      const targetMenu = document.getElementById(`menu-${menuId}`);
+      const isOpen = targetMenu.classList.contains('open');
+      document.querySelectorAll('.menu-panel').forEach(menu => menu.classList.remove('open'));
+      document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
+      if (!isOpen) {
+        targetMenu.classList.add('open');
+        event.currentTarget.classList.add('active');
       }
-      const m = Math.floor(timeValue / 60);
-      const s = timeValue % 60;
-      renderTime(0, m, s);
     }
 
-    function runStopwatch() {
-      if(isRunning) timeValue++;
-      const m = Math.floor(timeValue / 60);
-      const s = timeValue % 60;
-      const h = Math.floor(m / 60); // overflow hours
-      renderTime(h, m % 60, s);
-    }
-
-    // --- Mode Switcher ---
-    function setMode(newMode) {
-      mode = newMode;
-      clearInterval(interval);
-      isRunning = false;
-      btnStart.innerText = "Start";
+    // Mode Switching
+    function setMode(mode) {
+      currentMode = mode;
+      clearInterval(timerInterval);
+      timerRunning = false;
+      document.getElementById('btn-start').innerText = 'Start';
       
-      // UI Updates
-      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-      event.currentTarget.classList.add('active');
-      toggleMenu(null); // Close menus
+      document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+      document.getElementById(`mode-${mode}`).classList.add('active');
 
-      // Logic Switches
+      const controls = document.getElementById('control-actions');
       if (mode === 'clock') {
         controls.classList.remove('visible');
-        if (!document.getElementById('seconds-toggle').checked) secGroup.classList.add('hidden');
-        interval = setInterval(runClock, 1000);
-        runClock();
       } else {
         controls.classList.add('visible');
-        secGroup.classList.remove('hidden'); // Always show seconds for timer/stopwatch
-        
-        if (mode === 'timer') timeValue = 300; // Reset to 5m
-        if (mode === 'stopwatch') timeValue = 0;
-        
-        // Render initial 00 state
-        const m = Math.floor(timeValue / 60);
-        renderTime(0, m % 60, timeValue % 60);
+        timeElapsed = 0;
+        if (mode === 'timer') {
+          const mins = parseInt(document.getElementById('timer-duration').value) || 5;
+          totalTimerSeconds = mins * 60;
+        }
+      }
+      updateDisplay();
+    }
 
-        interval = setInterval(() => {
-          if (mode === 'timer') runTimer();
-          if (mode === 'stopwatch') runStopwatch();
-        }, 1000);
+    // Helper: Update Text Only (NO FLIP ANIMATION)
+    function updateCards(id1, id2, value) {
+      const str = String(value).padStart(2, '0');
+      document.getElementById(id1).innerText = str[0];
+      document.getElementById(id2).innerText = str[1];
+    }
+
+    // Main Engine
+    function updateDisplay() {
+      if (currentMode === 'clock') {
+        const now = new Date();
+        updateCards('h1', 'h2', now.getHours());
+        updateCards('m1', 'm2', now.getMinutes());
+        updateCards('s1', 's2', now.getSeconds());
+      } else if (currentMode === 'stopwatch') {
+        const hours = Math.floor(timeElapsed / 3600);
+        const minutes = Math.floor((timeElapsed % 3600) / 60);
+        const seconds = timeElapsed % 60;
+        
+        if (hours > 0) {
+          updateCards('h1', 'h2', hours);
+          updateCards('m1', 'm2', minutes);
+        } else {
+          updateCards('h1', 'h2', minutes);
+          updateCards('m1', 'm2', seconds);
+        }
+      } else if (currentMode === 'timer') {
+        const remaining = Math.max(0, totalTimerSeconds - timeElapsed);
+        const minutes = Math.floor(remaining / 60);
+        const seconds = remaining % 60;
+        
+        updateCards('h1', 'h2', 0); 
+        updateCards('m1', 'm2', minutes);
+        updateCards('s1', 's2', seconds);
+
+        if (remaining === 0 && timerRunning) {
+          clearInterval(timerInterval);
+          timerRunning = false;
+          document.getElementById('btn-start').innerText = 'Start';
+          alert("Time's Up!");
+        }
       }
     }
 
-    // --- Controls ---
-    btnStart.onclick = () => {
-      isRunning = !isRunning;
-      btnStart.innerText = isRunning ? "Pause" : "Start";
-    };
-    
-    document.getElementById('btn-reset').onclick = () => {
-      isRunning = false;
-      btnStart.innerText = "Start";
-      if(mode === 'timer') timeValue = 300;
-      if(mode === 'stopwatch') timeValue = 0;
-      // Force render reset
-      const m = Math.floor(timeValue / 60);
-      renderTime(0, m % 60, timeValue % 60);
-    };
+    // 1-Second Heartbeat
+    setInterval(() => {
+      if (currentMode === 'clock') updateDisplay();
+    }, 1000);
 
-    // --- Settings & Menus ---
-    function toggleMenu(id) {
-      document.querySelectorAll('.menu-panel').forEach(m => {
-        if(m.id === id && !m.classList.contains('open')) m.classList.add('open');
-        else m.classList.remove('open');
-      });
-    }
-
-    // Theme Logic
-    document.querySelectorAll('.theme-dot').forEach(dot => {
-      dot.onclick = () => {
-        document.querySelectorAll('.theme-dot').forEach(d => d.classList.remove('active'));
-        dot.classList.add('active');
-        document.documentElement.setAttribute('data-style', dot.dataset.set);
-        document.documentElement.style.removeProperty('--bg-color'); // clear custom
+    // Button Listeners
+    document.getElementById('btn-start').addEventListener('click', () => {
+      if (timerRunning) {
+        clearInterval(timerInterval);
+        timerRunning = false;
+        document.getElementById('btn-start').innerText = 'Start';
+      } else {
+        timerRunning = true;
+        document.getElementById('btn-start').innerText = 'Pause';
+        timerInterval = setInterval(() => {
+          timeElapsed++;
+          updateDisplay();
+        }, 1000);
       }
     });
 
-    document.getElementById('custom-color').oninput = (e) => {
-      document.documentElement.removeAttribute('data-style');
-      document.documentElement.style.setProperty('--bg-color', e.target.value);
-    };
-
-    document.getElementById('dark-mode-toggle').onchange = (e) => {
-      document.documentElement.setAttribute('data-theme', e.target.checked ? 'dark' : 'light');
-    };
-
-    document.getElementById('seconds-toggle').onchange = (e) => {
-      if (mode === 'clock') {
-        if (e.target.checked) secGroup.classList.remove('hidden');
-        else secGroup.classList.add('hidden');
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      clearInterval(timerInterval);
+      timerRunning = false;
+      timeElapsed = 0;
+      document.getElementById('btn-start').innerText = 'Start';
+      if (currentMode === 'timer') {
+        const mins = parseInt(document.getElementById('timer-duration').value) || 5;
+        totalTimerSeconds = mins * 60;
       }
-    };
+      updateDisplay();
+    });
 
-    // Start
-    setMode('clock');
+    // Theme & Settings Listeners
+    document.getElementById('custom-color').addEventListener('input', (e) => {
+      // Updates the CARD color specifically
+      document.documentElement.style.setProperty('--card-bg', e.target.value);
+    });
+
+    document.getElementById('dark-mode-toggle').addEventListener('change', (e) => {
+      document.documentElement.setAttribute('data-theme', e.target.checked ? 'dark' : 'light');
+    });
+
+    document.querySelectorAll('.theme-dot').forEach(dot => {
+      dot.addEventListener('click', () => {
+        document.querySelectorAll('.theme-dot').forEach(d => d.classList.remove('active'));
+        dot.classList.add('active');
+        document.documentElement.setAttribute('data-style', dot.getAttribute('data-set'));
+      });
+    });
+
+    document.getElementById('toggle-seconds').addEventListener('change', (e) => {
+      const secGroup = document.getElementById('sec-group');
+      e.target.checked ? secGroup.classList.remove('hidden') : secGroup.classList.add('hidden');
+    });
+
+    // Update Timer immediately when input changes
+    document.getElementById('timer-duration').addEventListener('input', (e) => {
+      if (currentMode === 'timer' && !timerRunning) {
+        const mins = parseInt(e.target.value) || 0;
+        totalTimerSeconds = mins * 60;
+        timeElapsed = 0;
+        updateDisplay();
+      }
+    });
+
+    // Init
+    updateDisplay();
   </script>
 </body>
 </html>
